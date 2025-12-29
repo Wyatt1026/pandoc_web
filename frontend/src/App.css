@@ -296,21 +296,28 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 .editor-container .cm-editor {
   height: 100%;
   font-size: 14px;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .editor-container .cm-editor .cm-scroller {
   font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-  overflow: auto !important;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+  flex: 1;
+  max-height: 100%;
 }
 
 .editor-container .cm-editor .cm-content {
   padding: 16px;
+  min-height: 100%;
 }
 
 .editor-container .cm-editor .cm-gutters {
