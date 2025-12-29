@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { Download, FolderOpen, Upload, RefreshCw, AlertTriangle, Loader2 } from 'lucide-react'
 
 interface ConvertPanelProps {
     markdown: string
@@ -8,12 +9,12 @@ interface ConvertPanelProps {
 type OutputFormat = 'docx' | 'html' | 'epub' | 'latex' | 'rst'
 type TemplateOption = 'none' | 'default' | 'custom'
 
-const formatOptions: { value: OutputFormat; label: string; icon: string }[] = [
-    { value: 'docx', label: 'Word 文档', icon: '📘' },
-    { value: 'html', label: 'HTML 网页', icon: '🌐' },
-    { value: 'epub', label: 'EPUB 电子书', icon: '📚' },
-    { value: 'latex', label: 'LaTeX 源码', icon: '📐' },
-    { value: 'rst', label: 'reStructuredText', icon: '📄' },
+const formatOptions: { value: OutputFormat; label: string }[] = [
+    { value: 'docx', label: 'Word 文档' },
+    { value: 'html', label: 'HTML 网页' },
+    { value: 'epub', label: 'EPUB 电子书' },
+    { value: 'latex', label: 'LaTeX 源码' },
+    { value: 'rst', label: 'reStructuredText' },
 ]
 
 function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
@@ -93,7 +94,7 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
                 const formData = new FormData()
                 formData.append('markdown', markdown)
                 formData.append('format', format)
-                
+
                 if (templateOption === 'default') {
                     formData.append('useCustomRef', 'true')
                 } else if (templateOption === 'custom' && customFile) {
@@ -163,7 +164,7 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
                 >
                     {formatOptions.map((opt) => (
                         <option key={opt.value} value={opt.value}>
-                            {opt.icon} {opt.label}
+                            {opt.label}
                         </option>
                     ))}
                 </select>
@@ -194,7 +195,7 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
                                 type="button"
                                 title="下载默认模板查看或修改"
                             >
-                                📥 下载模板
+                                <Download size={16} /> 下载模板
                             </button>
                         )}
 
@@ -212,7 +213,7 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
                                     onClick={() => fileInputRef.current?.click()}
                                     type="button"
                                 >
-                                    📁 {customFile ? customFile.name : '选择模板文件'}
+                                    <FolderOpen size={16} /> {customFile ? customFile.name : '选择模板文件'}
                                 </button>
                             </div>
                         )}
@@ -234,7 +235,7 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
                         disabled={loading}
                         title="上传 Markdown 文件到编辑器"
                     >
-                        📤 上传 .md 文件
+                        <Upload size={16} /> 上传 .md 文件
                     </button>
                 </div>
 
@@ -245,19 +246,19 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
                 >
                     {loading ? (
                         <>
-                            <span className="spinner"></span>
+                            <Loader2 className="animate-spin" size={16} />
                             转换中...
                         </>
                     ) : (
                         <>
-                            🔄 转换并下载
+                            <RefreshCw size={16} /> 转换并下载
                         </>
                     )}
                 </button>
             </div>
             {error && (
                 <div className="error-message">
-                    ⚠️ {error}
+                    <AlertTriangle size={16} /> {error}
                 </div>
             )}
         </div>

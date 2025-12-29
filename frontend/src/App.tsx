@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { FileText, Moon, Sun, Edit3, Eye } from 'lucide-react'
 import Editor from './components/Editor'
 import Preview from './components/Preview'
 import ConvertPanel from './components/ConvertPanel'
@@ -61,7 +62,7 @@ function hello() {
   const handleEditorScroll = useCallback((percent: number) => {
     setScrollSource('editor')
     setScrollPercent(percent)
-    
+
     // Clear previous timeout
     if (scrollTimeoutRef.current) {
       clearTimeout(scrollTimeoutRef.current)
@@ -75,7 +76,7 @@ function hello() {
   const handlePreviewScroll = useCallback((percent: number) => {
     setScrollSource('preview')
     setScrollPercent(percent)
-    
+
     // Clear previous timeout
     if (scrollTimeoutRef.current) {
       clearTimeout(scrollTimeoutRef.current)
@@ -91,11 +92,11 @@ function hello() {
       <header className="header">
         <div className="header-content">
           <div className="header-title">
-            <h1>📄 Pandoc Web</h1>
+            <h1><FileText className="header-icon" /> <span>Pandoc Web</span></h1>
             <p>Markdown 编辑器 & 文档转换工具</p>
           </div>
           <button className="theme-toggle" onClick={toggleTheme} title={`切换到${theme === 'light' ? '深色' : '浅色'}模式`}>
-            {theme === 'light' ? '🌙' : '☀️'}
+            {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
           </button>
         </div>
       </header>
@@ -103,11 +104,11 @@ function hello() {
       <main className="main">
         <div className="panel editor-panel">
           <div className="panel-header">
-            <span>📝 编辑器</span>
+            <span><Edit3 size={16} /> 编辑器</span>
           </div>
-          <Editor 
-            value={markdown} 
-            onChange={setMarkdown} 
+          <Editor
+            value={markdown}
+            onChange={setMarkdown}
             theme={theme}
             onScroll={handleEditorScroll}
             scrollPercent={scrollPercent}
@@ -116,9 +117,9 @@ function hello() {
         </div>
         <div className="panel preview-panel">
           <div className="panel-header">
-            <span>👁️ 预览</span>
+            <span><Eye size={16} /> 预览</span>
           </div>
-          <Preview 
+          <Preview
             markdown={markdown}
             onScroll={handlePreviewScroll}
             scrollPercent={scrollPercent}
