@@ -27,6 +27,12 @@ func main() {
 	// Convert endpoint
 	mux.HandleFunc("POST /api/convert", handlers.ConvertHandler)
 
+	// Convert with custom reference doc (multipart form)
+	mux.HandleFunc("POST /api/convert-with-ref", handlers.ConvertWithCustomRefHandler)
+
+	// Download default reference doc
+	mux.HandleFunc("GET /api/reference-doc", handlers.DownloadDefaultRefHandler)
+
 	// CORS middleware
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},

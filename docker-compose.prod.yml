@@ -18,6 +18,8 @@ services:
       - "8080"
     environment:
       - PORT=8080
+    volumes:
+      - ./custom-reference.docx:/app/reference/custom-reference.docx:ro
     restart: always
     networks:
       - pandoc-network
