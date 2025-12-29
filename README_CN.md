@@ -30,6 +30,8 @@
 
 ### Docker Compose（推荐）
 
+**无需本地安装 Pandoc！** 所有依赖已包含在 Docker 镜像中。
+
 ```bash
 # 克隆仓库
 git clone https://github.com/Wyatt1026/pandoc_web.git
@@ -41,7 +43,11 @@ docker compose up -d
 # 访问 http://localhost:3000
 ```
 
-### 本地开发
+### 本地开发（不使用 Docker）
+
+**前置要求：**
+- Node.js 20+ 用于前端
+- Go 1.22+ 和 **本地安装 Pandoc** 用于后端
 
 **前端：**
 ```bash
@@ -51,8 +57,13 @@ npm run dev
 # 访问 http://localhost:5173
 ```
 
-**后端：**（需要本地安装 Pandoc）
+**后端：**
 ```bash
+# 先安装 Pandoc：
+# macOS: brew install pandoc
+# Ubuntu: apt-get install pandoc
+# Windows: choco install pandoc
+
 cd backend
 go run .
 # API 运行在 http://localhost:8080

@@ -30,6 +30,8 @@ A web-based Markdown editor with live preview and document conversion powered by
 
 ### Docker Compose (Recommended)
 
+**No local Pandoc installation required!** All dependencies are included in Docker images.
+
 ```bash
 # Clone the repository
 git clone https://github.com/Wyatt1026/pandoc_web.git
@@ -41,7 +43,11 @@ docker compose up -d
 # Open http://localhost:3000
 ```
 
-### Local Development
+### Local Development (Without Docker)
+
+**Prerequisites:** 
+- Node.js 20+ for frontend
+- Go 1.22+ and **Pandoc installed locally** for backend
 
 **Frontend:**
 ```bash
@@ -51,8 +57,13 @@ npm run dev
 # Visit http://localhost:5173
 ```
 
-**Backend:** (requires Pandoc installed locally)
+**Backend:**
 ```bash
+# Install Pandoc first:
+# macOS: brew install pandoc
+# Ubuntu: apt-get install pandoc
+# Windows: choco install pandoc
+
 cd backend
 go run .
 # API running at http://localhost:8080
