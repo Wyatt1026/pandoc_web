@@ -5,7 +5,7 @@ services:
   frontend:
     image: ghcr.io/${GITHUB_REPO:-your-username/pandoc_web}/frontend:${TAG:-main}
     ports:
-      - "${FRONTEND_PORT:-80}:80"
+      - "${FRONTEND_PORT:-6364}:80"
     depends_on:
       - backend
     restart: always

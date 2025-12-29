@@ -82,7 +82,7 @@ go run .
 cat > .env << EOF
 GITHUB_REPO=wyatt1026/pandoc_web
 TAG=main
-FRONTEND_PORT=80
+FRONTEND_PORT=6364
 EOF
 ```
 
@@ -96,11 +96,10 @@ curl -O https://raw.githubusercontent.com/Wyatt1026/pandoc_web/main/docker-compo
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-**3. （可选）使用自定义端口：**
+**3. 访问应用：**
 
-```bash
-FRONTEND_PORT=8080 docker compose -f docker-compose.prod.yml up -d
-```
+- 默认地址：http://你的服务器IP:6364
+- 自定义端口：`FRONTEND_PORT=8080 docker compose -f docker-compose.prod.yml up -d`
 
 ### 在服务器上构建
 

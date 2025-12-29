@@ -82,7 +82,7 @@ After pushing to GitHub, images are automatically built via GitHub Actions and p
 cat > .env << EOF
 GITHUB_REPO=wyatt1026/pandoc_web
 TAG=main
-FRONTEND_PORT=80
+FRONTEND_PORT=6364
 EOF
 ```
 
@@ -96,11 +96,10 @@ curl -O https://raw.githubusercontent.com/Wyatt1026/pandoc_web/main/docker-compo
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-**3. (Optional) With custom port:**
+**3. Access your application:**
 
-```bash
-FRONTEND_PORT=8080 docker compose -f docker-compose.prod.yml up -d
-```
+- Default: http://your-server-ip:6364
+- Custom port: `FRONTEND_PORT=8080 docker compose -f docker-compose.prod.yml up -d`
 
 ### Building on Server
 
