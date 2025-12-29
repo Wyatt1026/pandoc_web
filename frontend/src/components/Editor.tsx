@@ -16,7 +16,7 @@ function Editor({ value, onChange, theme }: EditorProps) {
                 height="100%"
                 theme={theme}
                 extensions={[
-                    markdown({ base: markdownLanguage, codeLanguages: languages })
+                    markdown({ base: markdownLanguage, codeLanguages: languages }),
                 ]}
                 onChange={(val) => onChange(val)}
                 basicSetup={{

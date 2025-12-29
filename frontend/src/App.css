@@ -62,6 +62,7 @@
   --header-height: 80px;
   --convert-panel-height: 60px;
   --panel-header-height: 44px;
+  --footer-height: 36px;
 
   --transition-fast: 150ms ease;
   --transition-normal: 250ms ease;
@@ -77,17 +78,22 @@
   box-sizing: border-box;
 }
 
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
   line-height: 1.6;
-  min-height: 100vh;
   transition: background-color var(--transition-normal), color var(--transition-normal);
 }
 
 #root {
-  min-height: 100vh;
+  height: 100%;
+  overflow: hidden;
 }
 
 /* App Layout */
@@ -265,6 +271,23 @@ body {
   overflow: hidden;
 }
 
+/* Footer */
+.footer {
+  height: var(--footer-height);
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background-color var(--transition-normal), border-color var(--transition-normal);
+}
+
+.footer p {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
 /* Panels */
 .panel {
   flex: 1;
@@ -294,30 +317,32 @@ body {
 .editor-container {
   flex: 1;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
   position: relative;
+  min-height: 0;
+}
+
+.editor-container > div {
+  height: 100% !important;
 }
 
 .editor-container .cm-editor {
-  height: 100%;
+  height: 100% !important;
   font-size: 14px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
 }
 
 .editor-container .cm-editor .cm-scroller {
   font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-  overflow-y: auto !important;
+  overflow-y: scroll !important;
   overflow-x: auto !important;
-  flex: 1;
-  max-height: 100%;
 }
 
 .editor-container .cm-editor .cm-content {
   padding: 16px;
-  min-height: 100%;
+}
+
+/* 移除 CodeMirror 默认的底部空白区域 */
+.editor-container .cm-editor .cm-content::after {
+  display: none !important;
 }
 
 .editor-container .cm-editor .cm-gutters {

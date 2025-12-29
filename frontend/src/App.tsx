@@ -80,6 +80,9 @@ function hello() {
           <Preview markdown={markdown} />
         </div>
       </main>
+      <footer className="footer">
+        <p>© {new Date().getFullYear()} Pandoc Web. All rights reserved.</p>
+      </footer>
     </div>
   )
 }
