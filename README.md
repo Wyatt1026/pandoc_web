@@ -5,7 +5,7 @@
 A web-based Markdown editor with live preview and document conversion powered by Pandoc.
 
 ![Build Status](https://github.com/YOUR_USERNAME/pandoc_web/actions/workflows/docker-build.yml/badge.svg)
-![License](https://img.shields.io/badge/license-MIT-blue)
+![License](https://img.shields.io/badge/license-GPL--3.0-blue)
 
 ## Features
 
@@ -187,4 +187,4 @@ pandoc-web/
 
 ## License
 
-MIT
+GPL-3.0

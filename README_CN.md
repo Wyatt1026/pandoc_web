@@ -5,7 +5,7 @@
 基于 Pandoc 的 Web 端 Markdown 编辑器，支持实时预览和文档格式转换。
 
 ![构建状态](https://github.com/YOUR_USERNAME/pandoc_web/actions/workflows/docker-build.yml/badge.svg)
-![开源协议](https://img.shields.io/badge/license-MIT-blue)
+![开源协议](https://img.shields.io/badge/license-GPL--3.0-blue)
 
 ## 功能特性
 
@@ -187,4 +187,4 @@ pandoc-web/
 
 ## 开源协议
 
-MIT
+GPL-3.0
