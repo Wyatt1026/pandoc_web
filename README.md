@@ -4,7 +4,7 @@
 
 A web-based Markdown editor with live preview and document conversion powered by Pandoc.
 
-![Build Status](https://github.com/YOUR_USERNAME/pandoc_web/actions/workflows/docker-build.yml/badge.svg)
+![Build Status](https://github.com/Wyatt1026/pandoc_web/actions/workflows/docker-build.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
 
 ## Features
@@ -32,7 +32,7 @@ A web-based Markdown editor with live preview and document conversion powered by
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/pandoc_web.git
+git clone https://github.com/Wyatt1026/pandoc_web.git
 cd pandoc_web
 
 # Start services
@@ -69,7 +69,7 @@ After pushing to GitHub, images are automatically built via GitHub Actions and p
 ```bash
 # Create .env file on your server
 cat > .env << EOF
-GITHUB_REPO=your-username/pandoc_web
+GITHUB_REPO=wyatt1026/pandoc_web
 TAG=main
 FRONTEND_PORT=80
 EOF
@@ -79,7 +79,7 @@ EOF
 
 ```bash
 # Download production compose file
-curl -O https://raw.githubusercontent.com/YOUR_USERNAME/pandoc_web/main/docker-compose.prod.yml
+curl -O https://raw.githubusercontent.com/Wyatt1026/pandoc_web/main/docker-compose.prod.yml
 
 # Start services
 docker compose -f docker-compose.prod.yml up -d
@@ -96,7 +96,7 @@ FRONTEND_PORT=8080 docker compose -f docker-compose.prod.yml up -d
 If you prefer to build images on your server:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/pandoc_web.git
+git clone https://github.com/Wyatt1026/pandoc_web.git
 cd pandoc_web
 docker compose up -d --build
 ```
@@ -130,8 +130,8 @@ This project uses GitHub Actions for automated builds:
 - **Trigger**: Push to `main` branch or version tags (`v*`)
 - **Registry**: GitHub Container Registry (ghcr.io)
 - **Images**: 
-  - `ghcr.io/YOUR_USERNAME/pandoc_web/frontend:main`
-  - `ghcr.io/YOUR_USERNAME/pandoc_web/backend:main`
+  - `ghcr.io/Wyatt1026/pandoc_web/frontend:main`
+  - `ghcr.io/Wyatt1026/pandoc_web/backend:main`
 
 ## Supported Formats
 

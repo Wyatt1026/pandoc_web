@@ -4,7 +4,7 @@
 
 基于 Pandoc 的 Web 端 Markdown 编辑器，支持实时预览和文档格式转换。
 
-![构建状态](https://github.com/YOUR_USERNAME/pandoc_web/actions/workflows/docker-build.yml/badge.svg)
+![构建状态](https://github.com/Wyatt1026/pandoc_web/actions/workflows/docker-build.yml/badge.svg)
 ![开源协议](https://img.shields.io/badge/license-GPL--3.0-blue)
 
 ## 功能特性
@@ -32,7 +32,7 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/YOUR_USERNAME/pandoc_web.git
+git clone https://github.com/Wyatt1026/pandoc_web.git
 cd pandoc_web
 
 # 启动服务
@@ -69,7 +69,7 @@ go run .
 ```bash
 # 在服务器上创建 .env 文件
 cat > .env << EOF
-GITHUB_REPO=your-username/pandoc_web
+GITHUB_REPO=wyatt1026/pandoc_web
 TAG=main
 FRONTEND_PORT=80
 EOF
@@ -79,7 +79,7 @@ EOF
 
 ```bash
 # 下载生产环境 compose 文件
-curl -O https://raw.githubusercontent.com/YOUR_USERNAME/pandoc_web/main/docker-compose.prod.yml
+curl -O https://raw.githubusercontent.com/Wyatt1026/pandoc_web/main/docker-compose.prod.yml
 
 # 启动服务
 docker compose -f docker-compose.prod.yml up -d
@@ -96,7 +96,7 @@ FRONTEND_PORT=8080 docker compose -f docker-compose.prod.yml up -d
 如果你更喜欢在服务器上构建镜像：
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/pandoc_web.git
+git clone https://github.com/Wyatt1026/pandoc_web.git
 cd pandoc_web
 docker compose up -d --build
 ```
@@ -130,8 +130,8 @@ server {
 - **触发条件**：推送到 `main` 分支或版本标签（`v*`）
 - **镜像仓库**：GitHub Container Registry (ghcr.io)
 - **镜像地址**：
-  - `ghcr.io/YOUR_USERNAME/pandoc_web/frontend:main`
-  - `ghcr.io/YOUR_USERNAME/pandoc_web/backend:main`
+  - `ghcr.io/Wyatt1026/pandoc_web/frontend:main`
+  - `ghcr.io/Wyatt1026/pandoc_web/backend:main`
 
 ## 支持的格式
 
