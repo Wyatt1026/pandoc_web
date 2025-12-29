@@ -4,14 +4,15 @@
 
 A web-based Markdown editor with live preview and document conversion powered by Pandoc.
 
-![Light Theme](https://img.shields.io/badge/theme-light-brightgreen) ![Dark Theme](https://img.shields.io/badge/theme-dark-blue)
+![Build Status](https://github.com/YOUR_USERNAME/pandoc_web/actions/workflows/docker-build.yml/badge.svg)
+![License](https://img.shields.io/badge/license-MIT-blue)
 
 ## Features
 
 - ✨ **Real-time Preview** - See your Markdown rendered instantly
-- � **Syntax Highlighting** - CodeMirror-powered editor
-- �🔄 **Multi-format Export** - Convert to Word, HTML, EPUB, LaTeX, and more
-- � **Theme Toggle** - Switch between light and dark modes
+- 📝 **Syntax Highlighting** - CodeMirror-powered editor
+- 🔄 **Multi-format Export** - Convert to Word, HTML, EPUB, LaTeX, and more
+- 🌙 **Theme Toggle** - Switch between light and dark modes
 - 🐳 **Docker Ready** - One-command deployment with Docker Compose
 
 ## Tech Stack
@@ -31,8 +32,8 @@ A web-based Markdown editor with live preview and document conversion powered by
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/pandoc-web.git
-cd pandoc-web
+git clone https://github.com/YOUR_USERNAME/pandoc_web.git
+cd pandoc_web
 
 # Start services
 docker compose up -d
@@ -57,6 +58,81 @@ go run .
 # API running at http://localhost:8080
 ```
 
+## Server Deployment
+
+### Using Pre-built Images (Recommended)
+
+After pushing to GitHub, images are automatically built via GitHub Actions and pushed to GitHub Container Registry (GHCR).
+
+**1. Create environment file:**
+
+```bash
+# Create .env file on your server
+cat > .env << EOF
+GITHUB_REPO=your-username/pandoc_web
+TAG=main
+FRONTEND_PORT=80
+EOF
+```
+
+**2. Download and run:**
+
+```bash
+# Download production compose file
+curl -O https://raw.githubusercontent.com/YOUR_USERNAME/pandoc_web/main/docker-compose.prod.yml
+
+# Start services
+docker compose -f docker-compose.prod.yml up -d
+```
+
+**3. (Optional) With custom port:**
+
+```bash
+FRONTEND_PORT=8080 docker compose -f docker-compose.prod.yml up -d
+```
+
+### Building on Server
+
+If you prefer to build images on your server:
+
+```bash
+git clone https://github.com/YOUR_USERNAME/pandoc_web.git
+cd pandoc_web
+docker compose up -d --build
+```
+
+### Reverse Proxy (Nginx)
+
+Example Nginx configuration for HTTPS:
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name pandoc.yourdomain.com;
+
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+## CI/CD
+
+This project uses GitHub Actions for automated builds:
+
+- **Trigger**: Push to `main` branch or version tags (`v*`)
+- **Registry**: GitHub Container Registry (ghcr.io)
+- **Images**: 
+  - `ghcr.io/YOUR_USERNAME/pandoc_web/frontend:main`
+  - `ghcr.io/YOUR_USERNAME/pandoc_web/backend:main`
+
 ## Supported Formats
 
 | Format | Extension | Description |
@@ -77,11 +153,6 @@ go run .
 GET /api/health
 ```
 
-**Response:**
-```json
-{"status": "ok"}
-```
-
 ### Convert Document
 
 ```http
@@ -94,45 +165,25 @@ Content-Type: application/json
 }
 ```
 
-**Response:** Binary file download
-
 ## Project Structure
 
 ```
 pandoc-web/
-├── frontend/               # React + TypeScript
+├── .github/
+│   └── workflows/
+│       └── docker-build.yml    # CI/CD pipeline
+├── frontend/                   # React + TypeScript
 │   ├── src/
-│   │   ├── components/
-│   │   │   ├── Editor.tsx
-│   │   │   ├── Preview.tsx
-│   │   │   └── ConvertPanel.tsx
-│   │   ├── App.tsx
-│   │   └── App.css
 │   ├── Dockerfile
 │   └── nginx.conf
-├── backend/                # Go API Server
+├── backend/                    # Go API Server
 │   ├── handlers/
-│   │   └── convert.go
 │   ├── main.go
 │   └── Dockerfile
-├── docker-compose.yml
+├── docker-compose.yml          # Development
+├── docker-compose.prod.yml     # Production
 └── README.md
 ```
-
-## Configuration
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `8080` | Backend server port |
-
-### Docker Compose Ports
-
-| Service | Port | Description |
-|---------|------|-------------|
-| Frontend | 3000 | Web UI (Nginx) |
-| Backend | 8080 | API Server (internal) |
 
 ## License
 
