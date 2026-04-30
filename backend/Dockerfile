@@ -21,6 +21,7 @@ RUN apk add --no-cache \
     font-noto-cjk \
     pandoc \
     texlive \
+    texmf-dist-langchinese \
     texlive-xetex \
  && fc-cache -f
 
