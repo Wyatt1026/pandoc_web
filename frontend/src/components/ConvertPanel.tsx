@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Download, FolderOpen, Upload, RefreshCw, AlertTriangle, Loader2 } from 'lucide-react'
+import { Download, FolderOpen, Upload, AlertTriangle, Loader2 } from 'lucide-react'
 
 interface ConvertPanelProps {
     markdown: string
@@ -153,14 +153,14 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
     const isDocxFormat = format === 'docx'
 
     return (
-        <div className="convert-panel">
+        <>
             <div className="convert-controls">
-                <label htmlFor="format-select">输出格式：</label>
                 <select
                     id="format-select"
                     value={format}
                     onChange={(e) => setFormat(e.target.value as OutputFormat)}
                     disabled={loading}
+                    aria-label="输出格式"
                 >
                     {formatOptions.map((opt) => (
                         <option key={opt.value} value={opt.value}>
@@ -171,7 +171,6 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
 
                 {isDocxFormat && (
                     <>
-                        <label htmlFor="template-select">Word 模板：</label>
                         <select
                             id="template-select"
                             value={templateOption}
@@ -182,8 +181,9 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
                                 }
                             }}
                             disabled={loading}
+                            aria-label="Word 模板"
                         >
-                            <option value="none">不使用模板</option>
+                            <option value="none">无模板</option>
                             <option value="default">默认模板</option>
                             <option value="custom">自定义模板</option>
                         </select>
@@ -195,7 +195,7 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
                                 type="button"
                                 title="下载默认模板查看或修改"
                             >
-                                <Download size={16} /> 下载模板
+                                <Download size={14} /> <span>下载模板</span>
                             </button>
                         )}
 
@@ -213,7 +213,7 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
                                     onClick={() => fileInputRef.current?.click()}
                                     type="button"
                                 >
-                                    <FolderOpen size={16} /> {customFile ? customFile.name : '选择模板文件'}
+                                    <FolderOpen size={14} /> {customFile ? customFile.name : '选择模板'}
                                 </button>
                             </div>
                         )}
@@ -235,7 +235,7 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
                         disabled={loading}
                         title="上传 Markdown 文件到编辑器"
                     >
-                        <Upload size={16} /> 上传 .md 文件
+                        <Upload size={14} /> <span>上传 .md</span>
                     </button>
                 </div>
 
@@ -246,22 +246,22 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
                 >
                     {loading ? (
                         <>
-                            <Loader2 className="animate-spin" size={16} />
+                            <Loader2 className="animate-spin" size={14} />
                             转换中...
                         </>
                     ) : (
                         <>
-                            <RefreshCw size={16} /> 转换并下载
+                            <Download size={14} /> 转换下载
                         </>
                     )}
                 </button>
             </div>
             {error && (
                 <div className="error-message">
-                    <AlertTriangle size={16} /> {error}
+                    <AlertTriangle size={14} /> {error}
                 </div>
             )}
-        </div>
+        </>
     )
 }
 

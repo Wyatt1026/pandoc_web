@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { FileText, Moon, Sun, Edit3, Eye } from 'lucide-react'
+import { FileText, Moon, Sun } from 'lucide-react'
 import Editor from './components/Editor'
 import Preview from './components/Preview'
 import ConvertPanel from './components/ConvertPanel'
@@ -93,19 +93,16 @@ function hello() {
         <div className="header-content">
           <div className="header-title">
             <h1><FileText className="header-icon" /> <span>Pandoc Web</span></h1>
-            <p>Markdown 编辑器 & 文档转换工具</p>
           </div>
+          <div className="header-separator" />
+          <ConvertPanel markdown={markdown} onMarkdownChange={setMarkdown} />
           <button className="theme-toggle" onClick={toggleTheme} title={`切换到${theme === 'light' ? '深色' : '浅色'}模式`}>
-            {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+            {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
           </button>
         </div>
       </header>
-      <ConvertPanel markdown={markdown} onMarkdownChange={setMarkdown} />
       <main className="main">
         <div className="panel editor-panel">
-          <div className="panel-header">
-            <span><Edit3 size={16} /> 编辑器</span>
-          </div>
           <Editor
             value={markdown}
             onChange={setMarkdown}
@@ -116,9 +113,6 @@ function hello() {
           />
         </div>
         <div className="panel preview-panel">
-          <div className="panel-header">
-            <span><Eye size={16} /> 预览</span>
-          </div>
           <Preview
             markdown={markdown}
             onScroll={handlePreviewScroll}
@@ -127,9 +121,6 @@ function hello() {
           />
         </div>
       </main>
-      <footer className="footer">
-        <p>© {new Date().getFullYear()} Pandoc Web. All rights reserved.</p>
-      </footer>
     </div>
   )
 }
