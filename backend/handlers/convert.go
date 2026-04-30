@@ -42,6 +42,66 @@ var validFormats = map[string]string{
 	"odt":   "application/vnd.oasis.opendocument.text",
 }
 
+const pdfInlineCodeLineBreakFilter = `local latex_escapes = {
+	["\\"] = "\\textbackslash{}",
+	["{"] = "\\{",
+	["}"] = "\\}",
+	["#"] = "\\#",
+	["$"] = "\\$",
+	["%"] = "\\%",
+	["&"] = "\\&",
+	["_"] = "\\_",
+	["~"] = "\\textasciitilde{}",
+	["^"] = "\\textasciicircum{}"
+}
+
+local break_after = {
+	["."] = true,
+	["/"] = true,
+	["_"] = true,
+	["-"] = true,
+	["("] = true,
+	[")"] = true,
+	[","] = true,
+	[":"] = true
+}
+
+local function escape_breakable_code(text)
+	local parts = {}
+
+	for char in text:gmatch(utf8.charpattern) do
+		table.insert(parts, latex_escapes[char] or char)
+
+		if break_after[char] then
+			table.insert(parts, "\\allowbreak{}")
+		end
+	end
+
+	return table.concat(parts)
+end
+
+function Code(el)
+	return pandoc.RawInline("latex", "\\texttt{" .. escape_breakable_code(el.text) .. "}")
+end
+
+function Table(tbl)
+	return pandoc.walk_block(tbl, { Code = Code })
+end
+`
+
+func appendPDFOptions(args []string, tempDir string) ([]string, error) {
+	args = append(args, "--pdf-engine=xelatex")
+	args = append(args, "-V", "CJKmainfont=Noto Sans CJK SC")
+
+	filterPath := filepath.Join(tempDir, "pdf-inline-code-breaks.lua")
+	if err := os.WriteFile(filterPath, []byte(pdfInlineCodeLineBreakFilter), 0644); err != nil {
+		return nil, err
+	}
+
+	args = append(args, "--lua-filter="+filterPath)
+	return args, nil
+}
+
 func ConvertHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	var req ConvertRequest
@@ -96,9 +156,12 @@ func ConvertHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Add PDF-specific options
 	if req.Format == "pdf" {
-		args = append(args, "--pdf-engine=xelatex")
-		// Add CJK support for Chinese/Japanese/Korean characters
-		args = append(args, "-V", "CJKmainfont=Noto Sans CJK SC")
+		args, err = appendPDFOptions(args, tempDir)
+		if err != nil {
+			log.Printf("Failed to prepare PDF conversion options: %v", err)
+			sendError(w, http.StatusInternalServerError, "Internal server error")
+			return
+		}
 	}
 
 	// Add reference-doc for docx format
@@ -242,8 +305,12 @@ func ConvertWithCustomRefHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Add PDF-specific options
 	if format == "pdf" {
-		args = append(args, "--pdf-engine=xelatex")
-		args = append(args, "-V", "CJKmainfont=Noto Sans CJK SC")
+		args, err = appendPDFOptions(args, tempDir)
+		if err != nil {
+			log.Printf("Failed to prepare PDF conversion options: %v", err)
+			sendError(w, http.StatusInternalServerError, "Internal server error")
+			return
+		}
 	}
 
 	// Execute pandoc
