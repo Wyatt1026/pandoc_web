@@ -257,10 +257,21 @@ body {
   transition: all var(--transition-fast);
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   white-space: nowrap;
   margin-left: auto;
   flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+  min-width: 116px;
+}
+
+.convert-button.is-loading {
+  min-width: 220px;
+  padding: 8px 18px 14px;
+  align-items: flex-start;
+  justify-content: flex-start;
 }
 
 .convert-button:hover:not(:disabled) {
@@ -275,6 +286,53 @@ body {
 .convert-button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.convert-button.is-loading:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
+.convert-button-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+
+.convert-button-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.convert-button-subtitle {
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  color: rgba(255, 255, 255, 0.84);
+  font-weight: 500;
+}
+
+.convert-button-progress {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 7px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  overflow: hidden;
+}
+
+.convert-button-progress-bar {
+  display: block;
+  height: 100%;
+  width: var(--convert-progress, 0%);
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0.95));
+  transition: width 180ms ease;
 }
 
 /* Ghost / Outline Buttons */
@@ -664,6 +722,17 @@ body {
     font-size: 0.75rem;
   }
 
+  .convert-button.is-loading {
+    min-width: 168px;
+    padding: 6px 12px 12px;
+  }
+
+  .convert-button-subtitle {
+    max-width: 132px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   .template-download-btn,
   .template-upload-btn,
   .upload-md-btn {
@@ -691,6 +760,14 @@ body {
 
 @media (max-width: 480px) {
   .header h1 span {
+    display: none;
+  }
+
+  .convert-button.is-loading {
+    min-width: 124px;
+  }
+
+  .convert-button-subtitle {
     display: none;
   }
 

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Download, FolderOpen, Upload, AlertTriangle, Loader2 } from 'lucide-react'
 
 interface ConvertPanelProps {
@@ -8,6 +8,18 @@ interface ConvertPanelProps {
 
 type OutputFormat = 'pdf' | 'docx' | 'html' | 'epub' | 'latex' | 'rst'
 type TemplateOption = 'none' | 'default' | 'custom'
+type ConversionPhase = 'preparing' | 'uploading' | 'converting' | 'downloading' | 'finalizing'
+
+interface ConversionProgress {
+    phase: ConversionPhase
+    percent: number
+    detail: string
+}
+
+interface ConversionResult {
+    blob: Blob
+    filename: string
+}
 
 const formatOptions: { value: OutputFormat; label: string }[] = [
     { value: 'pdf', label: 'PDF 文档' },
@@ -18,14 +30,131 @@ const formatOptions: { value: OutputFormat; label: string }[] = [
     { value: 'rst', label: 'reStructuredText' },
 ]
 
+const clampProgress = (value: number) => Math.max(0, Math.min(100, Math.round(value)))
+
+const getProgressLabel = (progress: ConversionProgress | null) => {
+    if (!progress) {
+        return '转换中...'
+    }
+
+    switch (progress.phase) {
+        case 'preparing':
+            return `准备中 ${progress.percent}%`
+        case 'uploading':
+            return `上传中 ${progress.percent}%`
+        case 'converting':
+            return `转换中 ${progress.percent}%`
+        case 'downloading':
+            return `下载中 ${progress.percent}%`
+        case 'finalizing':
+            return `完成 ${progress.percent}%`
+        default:
+            return `转换中 ${progress.percent}%`
+    }
+}
+
+const extractFilename = (contentDisposition: string | null, fallbackFormat: OutputFormat) => {
+    let filename = `document.${fallbackFormat}`
+
+    if (!contentDisposition) {
+        return filename
+    }
+
+    const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i)
+    if (utf8Match) {
+        return decodeURIComponent(utf8Match[1])
+    }
+
+    const asciiMatch = contentDisposition.match(/filename="?([^";]+)"?/i)
+    if (asciiMatch) {
+        return asciiMatch[1]
+    }
+
+    return filename
+}
+
+const readBlobText = async (blob: Blob | null) => {
+    if (!blob) {
+        return ''
+    }
+
+    try {
+        return await blob.text()
+    } catch {
+        return ''
+    }
+}
+
+const extractErrorMessage = async (xhr: XMLHttpRequest) => {
+    const responseText = await readBlobText(xhr.response instanceof Blob ? xhr.response : null)
+
+    if (responseText) {
+        try {
+            const parsed = JSON.parse(responseText) as { error?: string }
+            if (parsed.error) {
+                return parsed.error
+            }
+        } catch {
+            return responseText
+        }
+    }
+
+    return `转换失败: ${xhr.statusText || '服务器错误'}`
+}
+
+const triggerDownload = (blob: Blob, filename: string) => {
+    const url = window.URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = filename
+    document.body.appendChild(anchor)
+    anchor.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(anchor)
+}
+
 function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
     const [format, setFormat] = useState<OutputFormat>('docx')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [progress, setProgress] = useState<ConversionProgress | null>(null)
     const [templateOption, setTemplateOption] = useState<TemplateOption>('none')
     const [customFile, setCustomFile] = useState<File | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const mdFileInputRef = useRef<HTMLInputElement>(null)
+    const xhrRef = useRef<XMLHttpRequest | null>(null)
+    const conversionPulseRef = useRef<number | null>(null)
+
+    const clearConversionPulse = () => {
+        if (conversionPulseRef.current !== null) {
+            window.clearInterval(conversionPulseRef.current)
+            conversionPulseRef.current = null
+        }
+    }
+
+    const startConversionPulse = () => {
+        clearConversionPulse()
+        conversionPulseRef.current = window.setInterval(() => {
+            setProgress((current) => {
+                if (!current || current.phase !== 'converting') {
+                    return current
+                }
+
+                const increment = current.percent < 72 ? 3 : 1
+                return {
+                    ...current,
+                    percent: Math.min(current.percent + increment, 88),
+                }
+            })
+        }, 320)
+    }
+
+    useEffect(() => {
+        return () => {
+            clearConversionPulse()
+            xhrRef.current?.abort()
+        }
+    }, [])
 
     const handleTemplateFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
@@ -83,12 +212,103 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
         }
     }
 
+    const requestConversion = (url: string, body: Document | XMLHttpRequestBodyInit | null, isJson: boolean) => {
+        return new Promise<ConversionResult>((resolve, reject) => {
+            const xhr = new XMLHttpRequest()
+            xhrRef.current = xhr
+            xhr.open('POST', url)
+            xhr.responseType = 'blob'
+
+            if (isJson) {
+                xhr.setRequestHeader('Content-Type', 'application/json')
+            }
+
+            xhr.upload.onloadstart = () => {
+                setProgress({
+                    phase: 'uploading',
+                    percent: 8,
+                    detail: '正在发送文档到服务器',
+                })
+            }
+
+            xhr.upload.onprogress = (event) => {
+                const uploadRatio = event.lengthComputable ? event.loaded / event.total : 0.5
+                const percent = clampProgress(8 + uploadRatio * 28)
+                setProgress({
+                    phase: 'uploading',
+                    percent,
+                    detail: '正在发送文档到服务器',
+                })
+            }
+
+            xhr.upload.onload = () => {
+                setProgress((current) => ({
+                    phase: 'converting',
+                    percent: Math.max(current?.percent ?? 0, 40),
+                    detail: '服务器正在生成文件',
+                }))
+                startConversionPulse()
+            }
+
+            xhr.onprogress = (event) => {
+                clearConversionPulse()
+                const downloadRatio = event.lengthComputable ? event.loaded / event.total : 0.5
+                const percent = clampProgress(88 + downloadRatio * 10)
+                setProgress({
+                    phase: 'downloading',
+                    percent: Math.min(percent, 98),
+                    detail: '正在接收转换结果',
+                })
+            }
+
+            xhr.onload = async () => {
+                clearConversionPulse()
+                xhrRef.current = null
+
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    setProgress({
+                        phase: 'finalizing',
+                        percent: 100,
+                        detail: '正在保存文件',
+                    })
+
+                    resolve({
+                        blob: xhr.response,
+                        filename: extractFilename(xhr.getResponseHeader('Content-Disposition'), format),
+                    })
+                    return
+                }
+
+                reject(new Error(await extractErrorMessage(xhr)))
+            }
+
+            xhr.onerror = () => {
+                clearConversionPulse()
+                xhrRef.current = null
+                reject(new Error('网络错误，转换失败'))
+            }
+
+            xhr.onabort = () => {
+                clearConversionPulse()
+                xhrRef.current = null
+                reject(new Error('转换已取消'))
+            }
+
+            xhr.send(body)
+        })
+    }
+
     const handleConvert = async () => {
         setLoading(true)
         setError(null)
+        setProgress({
+            phase: 'preparing',
+            percent: 3,
+            detail: '正在准备转换请求',
+        })
 
         try {
-            let response: Response
+            let result: ConversionResult
 
             // Use multipart form if custom template is selected
             if (format === 'docx' && (templateOption === 'custom' || templateOption === 'default')) {
@@ -102,52 +322,26 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
                     formData.append('referenceDoc', customFile)
                 }
 
-                response = await fetch('/api/convert-with-ref', {
-                    method: 'POST',
-                    body: formData,
-                })
+                result = await requestConversion('/api/convert-with-ref', formData, false)
             } else {
-                response = await fetch('/api/convert', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
+                result = await requestConversion(
+                    '/api/convert',
+                    JSON.stringify({
                         markdown,
                         format,
                     }),
-                })
+                    true,
+                )
             }
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}))
-                throw new Error(errorData.error || `转换失败: ${response.statusText}`)
-            }
-
-            // Get filename from Content-Disposition header or use default
-            const contentDisposition = response.headers.get('Content-Disposition')
-            let filename = `document.${format}`
-            if (contentDisposition) {
-                const match = contentDisposition.match(/filename="?([^"]+)"?/)
-                if (match) {
-                    filename = match[1]
-                }
-            }
-
-            // Download the file
-            const blob = await response.blob()
-            const url = window.URL.createObjectURL(blob)
-            const a = document.createElement('a')
-            a.href = url
-            a.download = filename
-            document.body.appendChild(a)
-            a.click()
-            window.URL.revokeObjectURL(url)
-            document.body.removeChild(a)
+            triggerDownload(result.blob, result.filename)
         } catch (err) {
             setError(err instanceof Error ? err.message : '发生未知错误')
         } finally {
+            clearConversionPulse()
             setLoading(false)
+            xhrRef.current = null
+            setProgress(null)
         }
     }
 
@@ -241,14 +435,26 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
                 </div>
 
                 <button
-                    className="convert-button"
+                    className={`convert-button${loading ? ' is-loading' : ''}`}
                     onClick={handleConvert}
                     disabled={loading || !markdown.trim() || (templateOption === 'custom' && !customFile)}
+                    aria-busy={loading}
+                    style={loading ? ({ ['--convert-progress' as string]: `${progress?.percent ?? 0}%` }) : undefined}
                 >
                     {loading ? (
                         <>
-                            <Loader2 className="animate-spin" size={14} />
-                            转换中...
+                            <span className="convert-button-content">
+                                <span className="convert-button-label">
+                                    <Loader2 className="animate-spin" size={14} />
+                                    {getProgressLabel(progress)}
+                                </span>
+                                <span className="convert-button-subtitle">
+                                    {progress?.detail ?? '正在处理文件'}
+                                </span>
+                            </span>
+                            <span className="convert-button-progress" aria-hidden="true">
+                                <span className="convert-button-progress-bar" />
+                            </span>
                         </>
                     ) : (
                         <>
