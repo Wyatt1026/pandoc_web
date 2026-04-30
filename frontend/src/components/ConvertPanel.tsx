@@ -6,10 +6,11 @@ interface ConvertPanelProps {
     onMarkdownChange: (markdown: string) => void
 }
 
-type OutputFormat = 'docx' | 'html' | 'epub' | 'latex' | 'rst'
+type OutputFormat = 'pdf' | 'docx' | 'html' | 'epub' | 'latex' | 'rst'
 type TemplateOption = 'none' | 'default' | 'custom'
 
 const formatOptions: { value: OutputFormat; label: string }[] = [
+    { value: 'pdf', label: 'PDF 文档' },
     { value: 'docx', label: 'Word 文档' },
     { value: 'html', label: 'HTML 网页' },
     { value: 'epub', label: 'EPUB 电子书' },

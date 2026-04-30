@@ -14,11 +14,15 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o pandoc-web-server .
 # Production stage
 FROM alpine:3.19
 
-# Install Pandoc (Linux version) - without TeXLive to keep image small
-# For PDF support, add: texlive texlive-xetex
+# Install Pandoc with XeLaTeX and CJK fonts for PDF export
 RUN apk add --no-cache \
     ca-certificates \
-    pandoc
+    fontconfig \
+    font-noto-cjk \
+    pandoc \
+    texlive \
+    texlive-xetex \
+ && fc-cache -f
 
 WORKDIR /app
 
