@@ -180,8 +180,22 @@ func asciiFilenameFallback(filename string) string {
 	return fallback
 }
 
-func setDownloadHeaders(w http.ResponseWriter, contentType string, filename string) {
+func fileSize(file *os.File) int64 {
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return -1
+	}
+
+	return fileInfo.Size()
+}
+
+func setDownloadHeaders(w http.ResponseWriter, contentType string, filename string, contentLength int64) {
 	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("X-Accel-Buffering", "no")
+	if contentLength >= 0 {
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", contentLength))
+	}
 	w.Header().Set(
 		"Content-Disposition",
 		fmt.Sprintf(`attachment; filename="%s"; filename*=UTF-8''%s`, asciiFilenameFallback(filename), url.PathEscape(filename)),
@@ -394,7 +408,7 @@ func ConvertHandler(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	// Set response headers
-	setDownloadHeaders(w, contentType, outputFilename(req.SourceName, ext))
+	setDownloadHeaders(w, contentType, outputFilename(req.SourceName, ext), fileSize(file))
 
 	// Stream file to response
 	if _, err := io.Copy(w, file); err != nil {
@@ -548,7 +562,7 @@ func ConvertWithCustomRefHandler(w http.ResponseWriter, r *http.Request) {
 	if sourceName == "" {
 		sourceName = r.FormValue("markdownPath")
 	}
-	setDownloadHeaders(w, contentType, outputFilename(sourceName, ext))
+	setDownloadHeaders(w, contentType, outputFilename(sourceName, ext), fileSize(outputFile))
 
 	// Stream file to response
 	if _, err := io.Copy(w, outputFile); err != nil {

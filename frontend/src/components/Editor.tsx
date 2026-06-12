@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useMemo, useState } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import type { ReactCodeMirrorRef } from '@uiw/react-codemirror'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
@@ -16,30 +16,38 @@ interface EditorProps {
 
 function Editor({ value, onChange, theme, onScroll, scrollPercent, isScrollSource }: EditorProps) {
     const editorRef = useRef<ReactCodeMirrorRef>(null)
-    const isInternalScroll = useRef(false)
+    const [isSyncingScroll, setIsSyncingScroll] = useState(false)
 
     // Handle external scroll sync
     useEffect(() => {
+        let resetTimer: ReturnType<typeof setTimeout> | null = null
+
         if (scrollPercent !== undefined && !isScrollSource && editorRef.current?.view) {
             const view = editorRef.current.view
             const scroller = view.scrollDOM
             const maxScroll = scroller.scrollHeight - scroller.clientHeight
             if (maxScroll > 0) {
-                isInternalScroll.current = true
+                // eslint-disable-next-line react-hooks/set-state-in-effect
+                setIsSyncingScroll(true)
                 scroller.scrollTop = maxScroll * scrollPercent
                 // Reset flag after a short delay
-                setTimeout(() => {
-                    isInternalScroll.current = false
+                resetTimer = setTimeout(() => {
+                    setIsSyncingScroll(false)
                 }, 50)
+            }
+        }
+
+        return () => {
+            if (resetTimer) {
+                clearTimeout(resetTimer)
             }
         }
     }, [scrollPercent, isScrollSource])
 
-    // Create scroll handler extension
-    const scrollHandler = useCallback(() => {
+    const scrollExtension = useMemo(() => {
         return EditorView.domEventHandlers({
             scroll: (event) => {
-                if (isInternalScroll.current || !onScroll) return
+                if (isSyncingScroll || !onScroll) return
                 const target = event.target as HTMLElement
                 const maxScroll = target.scrollHeight - target.clientHeight
                 if (maxScroll > 0) {
@@ -48,7 +56,7 @@ function Editor({ value, onChange, theme, onScroll, scrollPercent, isScrollSourc
                 }
             }
         })
-    }, [onScroll])
+    }, [isSyncingScroll, onScroll])
 
     return (
         <div className="editor-container">
@@ -59,7 +67,7 @@ function Editor({ value, onChange, theme, onScroll, scrollPercent, isScrollSourc
                 theme={theme}
                 extensions={[
                     markdown({ base: markdownLanguage, codeLanguages: languages }),
-                    scrollHandler(),
+                    scrollExtension,
                 ]}
                 onChange={(val) => onChange(val)}
                 basicSetup={{

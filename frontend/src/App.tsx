@@ -7,6 +7,7 @@ import './App.css'
 
 type Theme = 'light' | 'dark'
 type ScrollSource = 'editor' | 'preview' | null
+type PreviewAssetUrls = Record<string, string>
 
 function App() {
   const [markdown, setMarkdown] = useState<string>(`# 欢迎使用 Pandoc Web
@@ -44,11 +45,20 @@ function hello() {
     const saved = localStorage.getItem('theme') as Theme
     return saved || 'light'
   })
+  const [previewAssetUrls, setPreviewAssetUrls] = useState<PreviewAssetUrls>({})
+  const [previewMarkdownPath, setPreviewMarkdownPath] = useState<string | null>(null)
+  const previewAssetUrlsRef = useRef<PreviewAssetUrls>({})
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     localStorage.setItem('theme', theme)
   }, [theme])
+
+  useEffect(() => {
+    return () => {
+      Object.values(previewAssetUrlsRef.current).forEach((url) => URL.revokeObjectURL(url))
+    }
+  }, [])
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light')
@@ -87,6 +97,13 @@ function hello() {
     }, 100)
   }, [])
 
+  const handlePreviewAssetsChange = useCallback((assetUrls: PreviewAssetUrls, markdownPath: string | null) => {
+    Object.values(previewAssetUrlsRef.current).forEach((url) => URL.revokeObjectURL(url))
+    previewAssetUrlsRef.current = assetUrls
+    setPreviewAssetUrls(assetUrls)
+    setPreviewMarkdownPath(markdownPath)
+  }, [])
+
   return (
     <div className="app">
       <header className="header">
@@ -95,7 +112,11 @@ function hello() {
             <h1><FileText className="header-icon" /> <span>Pandoc Web</span></h1>
           </div>
           <div className="header-separator" />
-          <ConvertPanel markdown={markdown} onMarkdownChange={setMarkdown} />
+          <ConvertPanel
+            markdown={markdown}
+            onMarkdownChange={setMarkdown}
+            onPreviewAssetsChange={handlePreviewAssetsChange}
+          />
           <button className="theme-toggle" onClick={toggleTheme} title={`切换到${theme === 'light' ? '深色' : '浅色'}模式`}>
             {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
           </button>
@@ -115,6 +136,8 @@ function hello() {
         <div className="panel preview-panel">
           <Preview
             markdown={markdown}
+            assetUrls={previewAssetUrls}
+            markdownPath={previewMarkdownPath}
             onScroll={handlePreviewScroll}
             scrollPercent={scrollPercent}
             isScrollSource={scrollSource === 'preview'}

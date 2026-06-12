@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
@@ -7,14 +7,62 @@ import 'katex/dist/katex.min.css'
 
 interface PreviewProps {
     markdown: string
+    assetUrls?: Record<string, string>
+    markdownPath?: string | null
     onScroll?: (scrollPercent: number) => void
     scrollPercent?: number
     isScrollSource?: boolean
 }
 
-function Preview({ markdown, onScroll, scrollPercent, isScrollSource }: PreviewProps) {
+const stripUrlSuffix = (value: string) => value.split(/[?#]/, 1)[0]
+
+const decodePath = (value: string) => {
+    try {
+        return decodeURIComponent(value)
+    } catch {
+        return value
+    }
+}
+
+const normalizeAssetPath = (value: string) => {
+    const cleanPath = decodePath(stripUrlSuffix(value))
+        .replace(/\\/g, '/')
+        .replace(/^\/+/, '')
+
+    const segments: string[] = []
+    for (const segment of cleanPath.split('/')) {
+        if (!segment || segment === '.') {
+            continue
+        }
+
+        if (segment === '..') {
+            segments.pop()
+            continue
+        }
+
+        segments.push(segment)
+    }
+
+    return segments.join('/')
+}
+
+const dirname = (value: string) => {
+    const normalized = normalizeAssetPath(value)
+    const lastSlashIndex = normalized.lastIndexOf('/')
+    return lastSlashIndex === -1 ? '' : normalized.slice(0, lastSlashIndex)
+}
+
+const isExternalImageSrc = (value: string) => /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(value)
+
+const removePandocImageAttributes = (value: string) => {
+    return value.replace(/(!\[[^\]\n]*\]\([^)\n]+\))\{[^}\n]*\}/g, '$1')
+}
+
+function Preview({ markdown, assetUrls = {}, markdownPath, onScroll, scrollPercent, isScrollSource }: PreviewProps) {
     const containerRef = useRef<HTMLDivElement>(null)
     const isInternalScroll = useRef(false)
+    const markdownDir = useMemo(() => (markdownPath ? dirname(markdownPath) : ''), [markdownPath])
+    const previewMarkdown = useMemo(() => removePandocImageAttributes(markdown), [markdown])
 
     // Handle external scroll sync
     useEffect(() => {
@@ -42,6 +90,16 @@ function Preview({ markdown, onScroll, scrollPercent, isScrollSource }: PreviewP
         }
     }, [onScroll])
 
+    const resolveImageSrc = useCallback((src: string | undefined) => {
+        if (!src || isExternalImageSrc(src)) {
+            return src
+        }
+
+        const directPath = normalizeAssetPath(src)
+        const relativeToMarkdownPath = normalizeAssetPath(markdownDir ? `${markdownDir}/${src}` : src)
+        return assetUrls[directPath] ?? assetUrls[relativeToMarkdownPath] ?? src
+    }, [assetUrls, markdownDir])
+
     return (
         <div 
             className="preview-container" 
@@ -51,8 +109,23 @@ function Preview({ markdown, onScroll, scrollPercent, isScrollSource }: PreviewP
             <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkMath]}
                 rehypePlugins={[rehypeKatex]}
+                components={{
+                    img: ({ node, src, alt, ...props }) => {
+                        void node
+
+                        return (
+                            <img
+                                {...props}
+                                src={resolveImageSrc(src)}
+                                alt={alt ?? ''}
+                                loading="lazy"
+                                decoding="async"
+                            />
+                        )
+                    },
+                }}
             >
-                {markdown}
+                {previewMarkdown}
             </ReactMarkdown>
         </div>
     )

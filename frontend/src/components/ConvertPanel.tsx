@@ -4,6 +4,7 @@ import { Download, FolderOpen, Upload, AlertTriangle, Loader2 } from 'lucide-rea
 interface ConvertPanelProps {
     markdown: string
     onMarkdownChange: (markdown: string) => void
+    onPreviewAssetsChange: (assetUrls: Record<string, string>, markdownPath: string | null) => void
 }
 
 type OutputFormat = 'pdf' | 'docx' | 'html' | 'epub' | 'latex' | 'rst'
@@ -49,6 +50,22 @@ const isMarkdownFile = (file: File) => file.name.endsWith('.md') || file.name.en
 const getFileRelativePath = (file: File) => {
     const fileWithPath = file as FileWithRelativePath
     return fileWithPath.webkitRelativePath || file.name
+}
+
+const isPreviewableImage = (file: File) => {
+    return file.type.startsWith('image/') || /\.(avif|bmp|gif|ico|jpe?g|png|svg|webp)$/i.test(file.name)
+}
+
+const formatBytes = (value: number) => {
+    if (value < 1024) {
+        return `${value} B`
+    }
+
+    if (value < 1024 * 1024) {
+        return `${(value / 1024).toFixed(1)} KB`
+    }
+
+    return `${(value / 1024 / 1024).toFixed(1)} MB`
 }
 
 const getProgressLabel = (progress: ConversionProgress | null) => {
@@ -128,11 +145,11 @@ const triggerDownload = (blob: Blob, filename: string) => {
     anchor.download = filename
     document.body.appendChild(anchor)
     anchor.click()
-    window.URL.revokeObjectURL(url)
     document.body.removeChild(anchor)
+    window.setTimeout(() => window.URL.revokeObjectURL(url), 30000)
 }
 
-function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
+function ConvertPanel({ markdown, onMarkdownChange, onPreviewAssetsChange }: ConvertPanelProps) {
     const [format, setFormat] = useState<OutputFormat>('docx')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -205,6 +222,7 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
                 setResourceFiles([])
                 setMarkdownPath(null)
                 setSourceName(file.name)
+                onPreviewAssetsChange({}, null)
                 setError(null)
             }
             reader.onerror = () => {
@@ -254,6 +272,14 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
             setResourceFiles(resources)
             setMarkdownPath(selectedMarkdownPath)
             setSourceName(markdownFile.name)
+            onPreviewAssetsChange(
+                Object.fromEntries(
+                    resources
+                        .filter((resource) => isPreviewableImage(resource.file))
+                        .map((resource) => [resource.relativePath, URL.createObjectURL(resource.file)]),
+                ),
+                selectedMarkdownPath,
+            )
             setError(null)
         }
         reader.onerror = () => {
@@ -328,10 +354,13 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
                 clearConversionPulse()
                 const downloadRatio = event.lengthComputable ? event.loaded / event.total : 0.5
                 const percent = clampProgress(88 + downloadRatio * 10)
+                const detail = event.lengthComputable
+                    ? `正在接收转换结果 ${formatBytes(event.loaded)} / ${formatBytes(event.total)}`
+                    : `正在接收转换结果 ${formatBytes(event.loaded)}`
                 setProgress({
                     phase: 'downloading',
                     percent: Math.min(percent, 98),
-                    detail: '正在接收转换结果',
+                    detail,
                 })
             }
 
@@ -343,7 +372,7 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
                     setProgress({
                         phase: 'finalizing',
                         percent: 100,
-                        detail: '正在保存文件',
+                        detail: '正在打开下载',
                     })
 
                     resolve({
