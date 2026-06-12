@@ -338,7 +338,8 @@ body {
 /* Ghost / Outline Buttons */
 .template-download-btn,
 .template-upload-btn,
-.upload-md-btn {
+.upload-md-btn,
+.upload-folder-btn {
   background: transparent;
   color: var(--text-secondary);
   border: 1px solid var(--border);
@@ -356,7 +357,8 @@ body {
 
 .template-download-btn:hover,
 .template-upload-btn:hover,
-.upload-md-btn:hover:not(:disabled) {
+.upload-md-btn:hover:not(:disabled),
+.upload-folder-btn:hover:not(:disabled) {
   background: var(--accent-subtle);
   color: var(--accent);
   border-color: var(--accent);
@@ -374,7 +376,8 @@ body {
   align-items: center;
 }
 
-.upload-md-btn:disabled {
+.upload-md-btn:disabled,
+.upload-folder-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
@@ -735,7 +738,8 @@ body {
 
   .template-download-btn,
   .template-upload-btn,
-  .upload-md-btn {
+  .upload-md-btn,
+  .upload-folder-btn {
     padding: 5px 8px;
     font-size: 0.75rem;
   }
@@ -773,7 +777,8 @@ body {
 
   .template-download-btn span,
   .template-upload-btn span,
-  .upload-md-btn span {
+  .upload-md-btn span,
+  .upload-folder-btn span {
     display: none;
   }
 }

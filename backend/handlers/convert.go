@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -17,6 +20,7 @@ type ConvertRequest struct {
 	Markdown     string `json:"markdown"`
 	Format       string `json:"format"`
 	UseCustomRef bool   `json:"useCustomRef"`
+	SourceName   string `json:"sourceName"`
 }
 
 type ErrorResponse struct {
@@ -25,6 +29,7 @@ type ErrorResponse struct {
 
 // Default reference doc path
 const defaultRefDocPath = "/app/reference/custom-reference.docx"
+const maxMultipartMemory = 64 << 20
 
 // Store for custom reference docs (session-based, in-memory)
 var (
@@ -102,6 +107,202 @@ func appendPDFOptions(args []string, tempDir string) ([]string, error) {
 	return args, nil
 }
 
+func outputExtension(format string) string {
+	if format == "latex" {
+		return "tex"
+	}
+
+	return format
+}
+
+func sanitizeDownloadBaseName(sourceName string) string {
+	cleanName := strings.ReplaceAll(filepath.ToSlash(sourceName), `\`, "/")
+	cleanName = path.Base(cleanName)
+	cleanName = strings.TrimSpace(cleanName)
+	if cleanName == "." || cleanName == "/" {
+		return ""
+	}
+
+	cleanName = strings.Map(func(r rune) rune {
+		switch r {
+		case 0, '/', '\\', ':', '*', '?', '"', '<', '>', '|', '\r', '\n', '\t':
+			return '-'
+		default:
+			if r < 32 {
+				return '-'
+			}
+			return r
+		}
+	}, cleanName)
+	cleanName = strings.Trim(cleanName, " .")
+	if cleanName == "" {
+		return ""
+	}
+
+	ext := strings.ToLower(path.Ext(cleanName))
+	if ext == ".md" || ext == ".markdown" {
+		cleanName = strings.TrimSuffix(cleanName, path.Ext(cleanName))
+	}
+
+	return strings.Trim(cleanName, " .")
+}
+
+func outputFilename(sourceName string, ext string) string {
+	baseName := sanitizeDownloadBaseName(sourceName)
+	if baseName == "" {
+		baseName = "document"
+	}
+
+	return fmt.Sprintf("%s.%s", baseName, ext)
+}
+
+func asciiFilenameFallback(filename string) string {
+	var builder strings.Builder
+	for _, r := range filename {
+		if r >= 32 && r <= 126 {
+			switch r {
+			case '"', '\\', '/', ':', '*', '?', '<', '>', '|':
+				builder.WriteRune('-')
+			default:
+				builder.WriteRune(r)
+			}
+			continue
+		}
+
+		builder.WriteRune('-')
+	}
+
+	fallback := strings.Trim(builder.String(), " .")
+	if fallback == "" {
+		return "document"
+	}
+
+	return fallback
+}
+
+func setDownloadHeaders(w http.ResponseWriter, contentType string, filename string) {
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set(
+		"Content-Disposition",
+		fmt.Sprintf(`attachment; filename="%s"; filename*=UTF-8''%s`, asciiFilenameFallback(filename), url.PathEscape(filename)),
+	)
+}
+
+func sanitizeRelativePath(rawPath string) (string, error) {
+	cleanInput := strings.ReplaceAll(filepath.ToSlash(rawPath), `\`, "/")
+	if cleanInput == "" {
+		return "", fmt.Errorf("empty path")
+	}
+	if strings.Contains(cleanInput, "\x00") {
+		return "", fmt.Errorf("invalid path")
+	}
+	if strings.HasPrefix(cleanInput, "/") || strings.HasPrefix(cleanInput, `\`) {
+		return "", fmt.Errorf("absolute paths are not allowed")
+	}
+
+	parts := strings.Split(cleanInput, "/")
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." {
+			return "", fmt.Errorf("path traversal is not allowed")
+		}
+	}
+
+	cleanPath := path.Clean(cleanInput)
+	if cleanPath == "." || cleanPath == ".." || strings.HasPrefix(cleanPath, "../") {
+		return "", fmt.Errorf("path traversal is not allowed")
+	}
+
+	return cleanPath, nil
+}
+
+func safeJoin(baseDir string, relativePath string) (string, error) {
+	cleanPath, err := sanitizeRelativePath(relativePath)
+	if err != nil {
+		return "", err
+	}
+
+	targetPath := filepath.Join(baseDir, filepath.FromSlash(cleanPath))
+	rel, err := filepath.Rel(baseDir, targetPath)
+	if err != nil {
+		return "", err
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return "", fmt.Errorf("path escapes workspace")
+	}
+
+	return targetPath, nil
+}
+
+func writeMarkdownToWorkspace(tempDir string, markdown string, sourcePath string) (string, string, error) {
+	relativePath := "input.md"
+	if sourcePath != "" {
+		cleanPath, err := sanitizeRelativePath(sourcePath)
+		if err != nil {
+			return "", "", fmt.Errorf("invalid markdown path: %w", err)
+		}
+		relativePath = cleanPath
+	}
+
+	inputPath, err := safeJoin(tempDir, relativePath)
+	if err != nil {
+		return "", "", err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(inputPath), 0755); err != nil {
+		return "", "", err
+	}
+
+	if err := os.WriteFile(inputPath, []byte(markdown), 0644); err != nil {
+		return "", "", err
+	}
+
+	return inputPath, filepath.Dir(inputPath), nil
+}
+
+func appendResourcePath(args []string, resourceRoot string, tempDir string) []string {
+	resourcePaths := []string{resourceRoot}
+	if resourceRoot != tempDir {
+		resourcePaths = append(resourcePaths, tempDir)
+	}
+
+	return append(args, "--resource-path="+strings.Join(resourcePaths, string(os.PathListSeparator)))
+}
+
+func saveUploadedAsset(tempDir string, fieldName string, header *multipart.FileHeader) error {
+	const assetPrefix = "asset:"
+	if !strings.HasPrefix(fieldName, assetPrefix) {
+		return nil
+	}
+
+	assetPath := strings.TrimPrefix(fieldName, assetPrefix)
+	targetPath, err := safeJoin(tempDir, assetPath)
+	if err != nil {
+		return fmt.Errorf("invalid asset path %q: %w", assetPath, err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+		return err
+	}
+
+	sourceFile, err := header.Open()
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	targetFile, err := os.Create(targetPath)
+	if err != nil {
+		return err
+	}
+	defer targetFile.Close()
+
+	if _, err := io.Copy(targetFile, sourceFile); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func ConvertHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	var req ConvertRequest
@@ -133,18 +334,15 @@ func ConvertHandler(w http.ResponseWriter, r *http.Request) {
 	defer os.RemoveAll(tempDir)
 
 	// Write markdown to temp file
-	inputPath := filepath.Join(tempDir, "input.md")
-	if err := os.WriteFile(inputPath, []byte(req.Markdown), 0644); err != nil {
+	inputPath, resourceRoot, err := writeMarkdownToWorkspace(tempDir, req.Markdown, "")
+	if err != nil {
 		log.Printf("Failed to write input file: %v", err)
 		sendError(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
 	// Determine output file extension
-	ext := req.Format
-	if ext == "latex" {
-		ext = "tex"
-	}
+	ext := outputExtension(req.Format)
 	outputPath := filepath.Join(tempDir, fmt.Sprintf("output.%s", ext))
 
 	// Build pandoc command
@@ -153,6 +351,7 @@ func ConvertHandler(w http.ResponseWriter, r *http.Request) {
 		"-o", outputPath,
 		"--standalone",
 	}
+	args = appendResourcePath(args, resourceRoot, tempDir)
 
 	// Add PDF-specific options
 	if req.Format == "pdf" {
@@ -177,6 +376,7 @@ func ConvertHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Execute pandoc
 	cmd := exec.Command("pandoc", args...)
+	cmd.Dir = resourceRoot
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Printf("Pandoc conversion failed: %v\nOutput: %s", err, string(output))
@@ -194,9 +394,7 @@ func ConvertHandler(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	// Set response headers
-	filename := fmt.Sprintf("document.%s", ext)
-	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	setDownloadHeaders(w, contentType, outputFilename(req.SourceName, ext))
 
 	// Stream file to response
 	if _, err := io.Copy(w, file); err != nil {
@@ -214,11 +412,12 @@ func sendError(w http.ResponseWriter, status int, message string) {
 
 // ConvertWithCustomRefHandler handles conversion with custom reference doc uploaded
 func ConvertWithCustomRefHandler(w http.ResponseWriter, r *http.Request) {
-	// Parse multipart form (max 10MB)
-	if err := r.ParseMultipartForm(10 << 20); err != nil {
+	// Parse multipart form. Larger embedded resources spill to temporary files.
+	if err := r.ParseMultipartForm(maxMultipartMemory); err != nil {
 		sendError(w, http.StatusBadRequest, "Failed to parse form data")
 		return
 	}
+	defer r.MultipartForm.RemoveAll()
 
 	// Get markdown content
 	markdown := r.FormValue("markdown")
@@ -244,19 +443,30 @@ func ConvertWithCustomRefHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer os.RemoveAll(tempDir)
 
-	// Write markdown to temp file
-	inputPath := filepath.Join(tempDir, "input.md")
-	if err := os.WriteFile(inputPath, []byte(markdown), 0644); err != nil {
+	for fieldName, fileHeaders := range r.MultipartForm.File {
+		if !strings.HasPrefix(fieldName, "asset:") {
+			continue
+		}
+
+		for _, fileHeader := range fileHeaders {
+			if err := saveUploadedAsset(tempDir, fieldName, fileHeader); err != nil {
+				log.Printf("Failed to save uploaded asset: %v", err)
+				sendError(w, http.StatusBadRequest, "Invalid asset upload")
+				return
+			}
+		}
+	}
+
+	// Write markdown to temp file after assets so edited text wins if paths overlap.
+	inputPath, resourceRoot, err := writeMarkdownToWorkspace(tempDir, markdown, r.FormValue("markdownPath"))
+	if err != nil {
 		log.Printf("Failed to write input file: %v", err)
-		sendError(w, http.StatusInternalServerError, "Internal server error")
+		sendError(w, http.StatusBadRequest, "Invalid markdown path")
 		return
 	}
 
 	// Determine output file extension
-	ext := format
-	if ext == "latex" {
-		ext = "tex"
-	}
+	ext := outputExtension(format)
 	outputPath := filepath.Join(tempDir, fmt.Sprintf("output.%s", ext))
 
 	// Build pandoc command
@@ -265,6 +475,7 @@ func ConvertWithCustomRefHandler(w http.ResponseWriter, r *http.Request) {
 		"-o", outputPath,
 		"--standalone",
 	}
+	args = appendResourcePath(args, resourceRoot, tempDir)
 
 	// Handle reference doc for docx format
 	if format == "docx" {
@@ -272,7 +483,7 @@ func ConvertWithCustomRefHandler(w http.ResponseWriter, r *http.Request) {
 		file, _, err := r.FormFile("referenceDoc")
 		if err == nil {
 			defer file.Close()
-			
+
 			// Save uploaded reference doc to temp directory
 			refDocPath := filepath.Join(tempDir, "custom-reference.docx")
 			refDocFile, err := os.Create(refDocPath)
@@ -282,13 +493,13 @@ func ConvertWithCustomRefHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			defer refDocFile.Close()
-			
+
 			if _, err := io.Copy(refDocFile, file); err != nil {
 				log.Printf("Failed to save reference doc: %v", err)
 				sendError(w, http.StatusInternalServerError, "Internal server error")
 				return
 			}
-			
+
 			args = append(args, "--reference-doc="+refDocPath)
 			log.Printf("Using uploaded custom reference doc")
 		} else {
@@ -315,6 +526,7 @@ func ConvertWithCustomRefHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Execute pandoc
 	cmd := exec.Command("pandoc", args...)
+	cmd.Dir = resourceRoot
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Printf("Pandoc conversion failed: %v\nOutput: %s", err, string(output))
@@ -332,9 +544,11 @@ func ConvertWithCustomRefHandler(w http.ResponseWriter, r *http.Request) {
 	defer outputFile.Close()
 
 	// Set response headers
-	filename := fmt.Sprintf("document.%s", ext)
-	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	sourceName := r.FormValue("sourceName")
+	if sourceName == "" {
+		sourceName = r.FormValue("markdownPath")
+	}
+	setDownloadHeaders(w, contentType, outputFilename(sourceName, ext))
 
 	// Stream file to response
 	if _, err := io.Copy(w, outputFile); err != nil {

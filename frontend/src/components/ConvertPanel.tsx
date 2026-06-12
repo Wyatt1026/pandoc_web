@@ -21,6 +21,13 @@ interface ConversionResult {
     filename: string
 }
 
+interface ResourceFile {
+    file: File
+    relativePath: string
+}
+
+type FileWithRelativePath = File & { webkitRelativePath?: string }
+
 const formatOptions: { value: OutputFormat; label: string }[] = [
     { value: 'pdf', label: 'PDF 文档' },
     { value: 'docx', label: 'Word 文档' },
@@ -30,7 +37,19 @@ const formatOptions: { value: OutputFormat; label: string }[] = [
     { value: 'rst', label: 'reStructuredText' },
 ]
 
+const directoryInputAttributes = {
+    webkitdirectory: '',
+    directory: '',
+}
+
 const clampProgress = (value: number) => Math.max(0, Math.min(100, Math.round(value)))
+
+const isMarkdownFile = (file: File) => file.name.endsWith('.md') || file.name.endsWith('.markdown')
+
+const getFileRelativePath = (file: File) => {
+    const fileWithPath = file as FileWithRelativePath
+    return fileWithPath.webkitRelativePath || file.name
+}
 
 const getProgressLabel = (progress: ConversionProgress | null) => {
     if (!progress) {
@@ -54,7 +73,7 @@ const getProgressLabel = (progress: ConversionProgress | null) => {
 }
 
 const extractFilename = (contentDisposition: string | null, fallbackFormat: OutputFormat) => {
-    let filename = `document.${fallbackFormat}`
+    const filename = `document.${fallbackFormat}`
 
     if (!contentDisposition) {
         return filename
@@ -120,8 +139,12 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
     const [progress, setProgress] = useState<ConversionProgress | null>(null)
     const [templateOption, setTemplateOption] = useState<TemplateOption>('none')
     const [customFile, setCustomFile] = useState<File | null>(null)
+    const [resourceFiles, setResourceFiles] = useState<ResourceFile[]>([])
+    const [markdownPath, setMarkdownPath] = useState<string | null>(null)
+    const [sourceName, setSourceName] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const mdFileInputRef = useRef<HTMLInputElement>(null)
+    const mdDirectoryInputRef = useRef<HTMLInputElement>(null)
     const xhrRef = useRef<XMLHttpRequest | null>(null)
     const conversionPulseRef = useRef<number | null>(null)
 
@@ -171,7 +194,7 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
     const handleMdFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (file) {
-            if (!file.name.endsWith('.md') && !file.name.endsWith('.markdown')) {
+            if (!isMarkdownFile(file)) {
                 setError('请上传 .md 或 .markdown 格式的文件')
                 return
             }
@@ -179,6 +202,9 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
             reader.onload = (event) => {
                 const content = event.target?.result as string
                 onMarkdownChange(content)
+                setResourceFiles([])
+                setMarkdownPath(null)
+                setSourceName(file.name)
                 setError(null)
             }
             reader.onerror = () => {
@@ -189,6 +215,54 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
         // Reset input so the same file can be uploaded again
         if (mdFileInputRef.current) {
             mdFileInputRef.current.value = ''
+        }
+    }
+
+    const handleMdDirectoryUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files ?? [])
+
+        if (files.length === 0) {
+            return
+        }
+
+        const markdownFiles = files
+            .filter(isMarkdownFile)
+            .sort((a, b) => getFileRelativePath(a).localeCompare(getFileRelativePath(b)))
+
+        if (markdownFiles.length === 0) {
+            setError('文件夹中没有找到 .md 或 .markdown 文件')
+            if (mdDirectoryInputRef.current) {
+                mdDirectoryInputRef.current.value = ''
+            }
+            return
+        }
+
+        const markdownFile = markdownFiles[0]
+        const selectedMarkdownPath = getFileRelativePath(markdownFile)
+        const resources = files
+            .filter((file) => file !== markdownFile)
+            .map((file) => ({
+                file,
+                relativePath: getFileRelativePath(file),
+            }))
+            .filter((resource) => resource.relativePath && resource.relativePath !== selectedMarkdownPath)
+
+        const reader = new FileReader()
+        reader.onload = (event) => {
+            const content = event.target?.result as string
+            onMarkdownChange(content)
+            setResourceFiles(resources)
+            setMarkdownPath(selectedMarkdownPath)
+            setSourceName(markdownFile.name)
+            setError(null)
+        }
+        reader.onerror = () => {
+            setError('读取文件夹中的 Markdown 失败')
+        }
+        reader.readAsText(markdownFile)
+
+        if (mdDirectoryInputRef.current) {
+            mdDirectoryInputRef.current.value = ''
         }
     }
 
@@ -298,6 +372,20 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
         })
     }
 
+    const appendResources = (formData: FormData) => {
+        if (sourceName) {
+            formData.append('sourceName', sourceName)
+        }
+
+        if (markdownPath) {
+            formData.append('markdownPath', markdownPath)
+        }
+
+        for (const resource of resourceFiles) {
+            formData.append(`asset:${resource.relativePath}`, resource.file, resource.file.name)
+        }
+    }
+
     const handleConvert = async () => {
         setLoading(true)
         setError(null)
@@ -309,16 +397,20 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
 
         try {
             let result: ConversionResult
+            const shouldUseMultipart =
+                Boolean(markdownPath) ||
+                resourceFiles.length > 0 ||
+                (format === 'docx' && (templateOption === 'custom' || templateOption === 'default'))
 
-            // Use multipart form if custom template is selected
-            if (format === 'docx' && (templateOption === 'custom' || templateOption === 'default')) {
+            if (shouldUseMultipart) {
                 const formData = new FormData()
                 formData.append('markdown', markdown)
                 formData.append('format', format)
+                appendResources(formData)
 
-                if (templateOption === 'default') {
+                if (format === 'docx' && templateOption === 'default') {
                     formData.append('useCustomRef', 'true')
-                } else if (templateOption === 'custom' && customFile) {
+                } else if (format === 'docx' && templateOption === 'custom' && customFile) {
                     formData.append('referenceDoc', customFile)
                 }
 
@@ -329,6 +421,7 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
                     JSON.stringify({
                         markdown,
                         format,
+                        sourceName: sourceName ?? '',
                     }),
                     true,
                 )
@@ -346,6 +439,10 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
     }
 
     const isDocxFormat = format === 'docx'
+    const resourceButtonLabel = resourceFiles.length > 0 ? `资源 ${resourceFiles.length}` : '上传文件夹'
+    const resourceButtonTitle = markdownPath
+        ? `已加载 ${markdownPath} 和 ${resourceFiles.length} 个资源`
+        : '上传包含图片资源的 Markdown 文件夹'
 
     return (
         <>
@@ -434,10 +531,30 @@ function ConvertPanel({ markdown, onMarkdownChange }: ConvertPanelProps) {
                     </button>
                 </div>
 
+                <div className="upload-md-section">
+                    <input
+                        ref={mdDirectoryInputRef}
+                        type="file"
+                        multiple
+                        onChange={handleMdDirectoryUpload}
+                        style={{ display: 'none' }}
+                        {...directoryInputAttributes}
+                    />
+                    <button
+                        className="upload-folder-btn"
+                        onClick={() => mdDirectoryInputRef.current?.click()}
+                        type="button"
+                        disabled={loading}
+                        title={resourceButtonTitle}
+                    >
+                        <FolderOpen size={14} /> <span>{resourceButtonLabel}</span>
+                    </button>
+                </div>
+
                 <button
                     className={`convert-button${loading ? ' is-loading' : ''}`}
                     onClick={handleConvert}
-                    disabled={loading || !markdown.trim() || (templateOption === 'custom' && !customFile)}
+                    disabled={loading || !markdown.trim() || (isDocxFormat && templateOption === 'custom' && !customFile)}
                     aria-busy={loading}
                     style={loading ? ({ ['--convert-progress' as string]: `${progress?.percent ?? 0}%` }) : undefined}
                 >
